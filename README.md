@@ -1,4 +1,4 @@
-# Autoflows Prototype: Agentic After-Sales Assistant
+# Prototype: Agentic After-Sales Assistant
 
 A lightweight, function-calling conversational agent built to demonstrate an understanding of agentic workflows, tool-calling schemas, and LLM-to-Database integrations.
 
