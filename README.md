@@ -1,11 +1,44 @@
-# Prototype: Agentic After-Sales Assistant
+# Workshop Assistant
 
-A lightweight, function-calling conversational agent built to demonstrate an understanding of agentic workflows, tool-calling schemas, and LLM-to-Database integrations.
+An AI assistant that books, checks, and cancels car workshop appointments through natural conversation.
 
-## Architecture & Tools
-* **LLM:** Claude Haiku 4.5 (chosen for speed, high context window, and cost-efficiency in conversational routing).
-* **Integration:** Python `sqlite3` mocking a local dealership database.
-* **Agentic Workflow:** The orchestrator utilizes Anthropic's tool-calling schema to programmatically halt generation, execute local Python functions (`check_availability`, `book_appointment`, `cancel_appointment`), and pass the deterministic database results back to the LLM for the final user response.
+Built with Claude (tool calling), FastAPI, SQLite, and Docker.
 
-## Why I Built This
-While I understand the theoretical math behind attention mechanisms and tokenization from my Deep Learning coursework, building reliable production agents requires a different approach. I built this to experiment with strict function-calling boundaries—ensuring the LLM cannot hallucinate an appointment that doesn't exist in the database, relying on System Prompts for static data (service menus), and forcing it to handle programmatic rejection.
+## How it works
+
+The customer chats with Claude. When Claude needs real information, it calls one of three Python tools (`check_availability`, `book_appointment`, `cancel_appointment`) that read and write a SQLite database. Claude never invents a booking: every answer comes from the database.
+
+The same tools are also available as a REST API and as an MCP server for Claude Desktop.
+
+## Run it
+
+You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) and an [Anthropic API key](https://console.anthropic.com).
+
+```bash
+git clone https://github.com/<your-username>/workshop-assistant.git
+cd workshop-assistant
+cp .env.example .env
+```
+
+Open `.env` and add your API key, then:
+
+```bash
+docker compose up --build
+```
+
+Open **http://localhost:8000** to chat, or **http://localhost:8000/docs** to try the API.
+
+## Project structure
+
+```
+agent.py        Claude, the tools, and the agent loop
+api.py          FastAPI: chat endpoint, REST endpoints, web page
+database.py     SQLite queries and booking rules
+server.py       MCP server for Claude Desktop
+main.py         Chat in the terminal
+static/         The chat web page
+```
+
+## Why I built this
+
+To learn how to build reliable AI agents in practice: keeping the model inside strict tool boundaries, letting code (not the prompt) enforce the rules, and turning a script into a small service that anyone can run.
