@@ -1,5 +1,10 @@
+# Secrets
 .env
-llm_ai/
+
+# Local data
+*.db
+
+# Python
 __pycache__/
-workshop.db
-notes.txt
+*.pyc
+.venv/

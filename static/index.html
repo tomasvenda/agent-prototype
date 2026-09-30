@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workshop Assistant</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #eef1f5;
+      display: flex;
+      justify-content: center;
+      height: 100vh;
+    }
+    .chat {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      background: white;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: #1f2a44;
+      color: white;
+    }
+    header h1 { font-size: 18px; margin: 0; }
+    header button {
+      background: transparent;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .msg {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      line-height: 1.4;
+      white-space: pre-wrap;   /* keep line breaks from Claude's replies */
+    }
+    .customer { align-self: flex-end;   background: #2f6fed; color: white; border-bottom-right-radius: 4px; }
+    .agent    { align-self: flex-start; background: #f0f2f5; color: #1c1e21; border-bottom-left-radius: 4px; }
+    .typing   { color: #888; font-style: italic; }
+    .error    { align-self: center; background: #fdecea; color: #a12622; font-size: 14px; }
+    form {
+      display: flex;
+      gap: 8px;
+      padding: 14px;
+      border-top: 1px solid #e3e6ea;
+    }
+    input {
+      flex: 1;
+      padding: 12px;
+      font-size: 15px;
+      border: 1px solid #ccd0d5;
+      border-radius: 8px;
+    }
+    form button {
+      padding: 0 20px;
+      font-size: 15px;
+      background: #2f6fed;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    form button:disabled { background: #9db7f0; cursor: default; }
+  </style>
+</head>
+<body>
+  <div class="chat">
+    <header>
+      <h1>🔧 Workshop Assistant</h1>
+      <button id="new-chat">New chat</button>
+    </header>
+
+    <div id="messages"></div>
+
+    <form id="chat-form">
+      <input id="input" type="text" placeholder="Type your message..." autocomplete="off" autofocus>
+      <button id="send" type="submit">Send</button>
+    </form>
+  </div>
+
+  <script>
+    // ---- Grab the elements we need from the page ----
+    const messagesEl = document.getElementById("messages");
+    const form       = document.getElementById("chat-form");
+    const input      = document.getElementById("input");
+    const sendBtn    = document.getElementById("send");
+    const newChatBtn = document.getElementById("new-chat");
+
+    // The conversation id the server gives us. null = no conversation yet.
+    let sessionId = null;
+
+    // ---- Add a message bubble to the screen ----
+    function addMessage(text, cssClass) {
+      const bubble = document.createElement("div");
+      bubble.className = "msg " + cssClass;
+      bubble.textContent = text;          // textContent = shown as plain text (safe)
+      messagesEl.appendChild(bubble);
+      messagesEl.scrollTop = messagesEl.scrollHeight;   // scroll to the newest message
+      return bubble;
+    }
+
+    // ---- Lock/unlock the input while waiting for the agent ----
+    function setBusy(busy) {
+      input.disabled = busy;
+      sendBtn.disabled = busy;
+    }
+
+    // ---- Send a message to POST /chat ----
+    async function sendMessage(text) {
+      addMessage(text, "customer");
+      setBusy(true);
+      const typing = addMessage("Assistant is typing…", "agent typing");
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, session_id: sessionId })
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          const detail = typeof error.detail === "string" ? error.detail : "Server error " + response.status;
+          throw new Error(detail);
+        }
+
+        const data = await response.json();
+        sessionId = data.session_id;      // remember it for the next message
+        typing.remove();
+        addMessage(data.reply, "agent");
+      } catch (err) {
+        typing.remove();
+        addMessage("Sorry, something went wrong: " + err.message, "error");
+      } finally {
+        setBusy(false);
+        input.focus();
+      }
+    }
+
+    // ---- When the form is submitted (Send button or Enter key) ----
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();             // stop the browser from reloading the page
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      sendMessage(text);
+    });
+
+    // ---- "New chat" button: forget the conversation on the server and on screen ----
+    newChatBtn.addEventListener("click", async () => {
+      if (sessionId) {
+        await fetch("/chat/" + sessionId, { method: "DELETE" });
+        sessionId = null;
+      }
+      messagesEl.innerHTML = "";
+      addMessage("Hello! How can I help you with your vehicle today?", "agent");
+      input.focus();
+    });
+
+    // ---- First greeting when the page loads ----
+    addMessage("Hello! How can I help you with your vehicle today?", "agent");
+  </script>
+</body>
+</html>

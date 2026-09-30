@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    image: workshop-assistant
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - workshop-data:/data
+    restart: unless-stopped
+
+volumes:
+  workshop-data:
