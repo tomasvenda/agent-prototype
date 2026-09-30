@@ -1,0 +1,197 @@
+[
+  {
+    "id": "book_free_day",
+    "description": "Customer books a service on a free day",
+    "today": "2030-01-11",
+    "seed": [],
+    "turns": [
+      "Hi, I'm Anna. Book me an oil change on 2030-01-15.",
+      "Yes, please go ahead."
+    ],
+    "expect": {
+      "final_appointments": [
+        {"customer_name": "Anna", "service_type": "Oil Change", "date": "2030-01-15"}
+      ],
+      "must_call": ["check_availability", "book_appointment"],
+      "must_not_call": [],
+      "check_before_book": true
+    }
+  },
+  {
+    "id": "book_relative_date",
+    "description": "Customer uses a relative date; today is Friday 2030-01-11 so next Tuesday is 2030-01-15",
+    "today": "2030-01-11",
+    "seed": [],
+    "turns": [
+      "Hi, I'm Anna. I'd like a tire rotation next Tuesday.",
+      "Yes, please go ahead."
+    ],
+    "expect": {
+      "final_appointments": [
+        {"customer_name": "Anna", "service_type": "Tire Rotation", "date": "2030-01-15"}
+      ],
+      "must_call": ["check_availability", "book_appointment"],
+      "must_not_call": [],
+      "check_before_book": true
+    }
+  },
+  {
+    "id": "book_other_date_format",
+    "description": "Customer writes the date as DD/MM/YYYY; the agent must convert it",
+    "today": "2030-01-11",
+    "seed": [],
+    "turns": [
+      "Hello, this is Anna. Can I book a brake inspection on 15/01/2030?",
+      "Yes, please go ahead."
+    ],
+    "expect": {
+      "final_appointments": [
+        {"customer_name": "Anna", "service_type": "Brake Inspection", "date": "2030-01-15"}
+      ],
+      "must_call": ["check_availability", "book_appointment"],
+      "must_not_call": [],
+      "check_before_book": true
+    }
+  },
+  {
+    "id": "book_full_day",
+    "description": "The requested day already has 2 bookings; no new booking must be created",
+    "today": "2030-01-11",
+    "seed": [
+      {"customer_name": "Bob", "service_type": "Oil Change", "date": "2030-01-15"},
+      {"customer_name": "Carla", "service_type": "Tire Rotation", "date": "2030-01-15"}
+    ],
+    "turns": [
+      "Hi, I'm Anna. Book me an oil change on 2030-01-15.",
+      "Yes, please go ahead."
+    ],
+    "expect": {
+      "final_appointments": [
+        {"customer_name": "Bob", "service_type": "Oil Change", "date": "2030-01-15"},
+        {"customer_name": "Carla", "service_type": "Tire Rotation", "date": "2030-01-15"}
+      ],
+      "must_call": ["check_availability"],
+      "must_not_call": [],
+      "check_before_book": true
+    }
+  },
+  {
+    "id": "unknown_service",
+    "description": "Customer asks for a service the workshop doesn't offer",
+    "today": "2030-01-11",
+    "seed": [],
+    "turns": [
+      "Hi, I'm Anna. Can I book a car wash on 2030-01-15?",
+      "Yes, please book it."
+    ],
+    "expect": {
+      "final_appointments": [],
+      "must_call": [],
+      "must_not_call": ["book_appointment"],
+      "check_before_book": false
+    }
+  },
+  {
+    "id": "missing_information",
+    "description": "No name and no date given; the agent must ask instead of guessing",
+    "today": "2030-01-11",
+    "seed": [],
+    "turns": [
+      "I need an oil change."
+    ],
+    "expect": {
+      "final_appointments": [],
+      "must_call": [],
+      "must_not_call": ["book_appointment"],
+      "check_before_book": false
+    }
+  },
+  {
+    "id": "info_over_several_turns",
+    "description": "Name, service and date arrive in separate messages; the agent must remember them",
+    "today": "2030-01-11",
+    "seed": [],
+    "turns": [
+      "Hi, I'm Carlos.",
+      "I'd like a full service.",
+      "On 2030-01-16, please.",
+      "Yes, go ahead."
+    ],
+    "expect": {
+      "final_appointments": [
+        {"customer_name": "Carlos", "service_type": "Full Service / MOT", "date": "2030-01-16"}
+      ],
+      "must_call": ["check_availability", "book_appointment"],
+      "must_not_call": [],
+      "check_before_book": true
+    }
+  },
+  {
+    "id": "cancel_existing",
+    "description": "Customer cancels an appointment that exists",
+    "today": "2030-01-11",
+    "seed": [
+      {"customer_name": "Bob", "service_type": "Tire Rotation", "date": "2030-01-15"}
+    ],
+    "turns": [
+      "Hi, I'm Bob. Please cancel my appointment on 2030-01-15.",
+      "Yes, cancel it."
+    ],
+    "expect": {
+      "final_appointments": [],
+      "must_call": ["cancel_appointment"],
+      "must_not_call": ["book_appointment"],
+      "check_before_book": false
+    }
+  },
+  {
+    "id": "cancel_wrong_person",
+    "description": "Customer tries to cancel on a date where only someone else has a booking",
+    "today": "2030-01-11",
+    "seed": [
+      {"customer_name": "Bob", "service_type": "Tire Rotation", "date": "2030-01-15"}
+    ],
+    "turns": [
+      "Hi, I'm Zoe. Please cancel my appointment on 2030-01-15.",
+      "Yes, cancel it."
+    ],
+    "expect": {
+      "final_appointments": [
+        {"customer_name": "Bob", "service_type": "Tire Rotation", "date": "2030-01-15"}
+      ],
+      "must_call": [],
+      "must_not_call": ["book_appointment"],
+      "check_before_book": false
+    }
+  },
+  {
+    "id": "availability_question_only",
+    "description": "Customer only asks if a day is free; the agent must not book anything",
+    "today": "2030-01-11",
+    "seed": [],
+    "turns": [
+      "Is 2030-01-15 free?"
+    ],
+    "expect": {
+      "final_appointments": [],
+      "must_call": ["check_availability"],
+      "must_not_call": ["book_appointment"],
+      "check_before_book": false
+    }
+  },
+  {
+    "id": "greeting_only",
+    "description": "Customer just says hello; the agent should greet back without using tools",
+    "today": "2030-01-11",
+    "seed": [],
+    "turns": [
+      "Hello!"
+    ],
+    "expect": {
+      "final_appointments": [],
+      "must_call": [],
+      "must_not_call": ["check_availability", "book_appointment", "cancel_appointment"],
+      "check_before_book": false
+    }
+  }
+]

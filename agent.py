@@ -1,5 +1,7 @@
 import os
-from datetime import date
+import time                                   
+from dataclasses import dataclass, field      
+from datetime import date, timedelta
 from dotenv import load_dotenv
 from anthropic import Anthropic
 from database import check_availability, book_appointment, cancel_appointment
@@ -62,6 +64,23 @@ Be conversational, concise, and polite. If a user just says hello or gives their
 Reply in plain text without Markdown formatting, as your messages are shown in a simple chat window.
 """
 
+SYSTEM_PROMPT_V2 = SYSTEM_PROMPT + """
+Dates:
+- Never calculate dates or weekdays yourself. Always look them up in the calendar provided below.
+- "Next <weekday>" means the first such day after today. For example, if today is Friday, "next Tuesday" is the Tuesday four days later.
+- Tool dates must use the YYYY-MM-DD format.
+- When you mention a date to the customer, give the weekday and the date exactly as written in the calendar.
+"""
+
+def build_calendar(today: date, days: int = 21) -> str:
+    """A list of the coming days with their weekdays, so Claude never has to compute them."""
+    lines = []
+    for offset in range(days + 1):
+        day = today + timedelta(days=offset)
+        label = " (today)" if offset == 0 else ""
+        lines.append(f"- {day.strftime('%A %Y-%m-%d')}{label}")
+    return "Calendar:\n" + "\n".join(lines)
+
 
 def execute_tool(tool_name, tool_args):
     """Router function to execute local Python code based on LLM requests."""
@@ -75,20 +94,49 @@ def execute_tool(tool_name, tool_args):
     return "Error: Tool not found."
 
 
-def run_agent_turn(messages: list) -> str:
+@dataclass
+class TurnResult:
+    reply: str
+    tool_calls: list = field(default_factory=list)   # one dict per tool call
+    input_tokens: int = 0
+    output_tokens: int = 0
+    llm_calls: int = 0                                # how many times Claude was called
+    latency_seconds: float = 0.0
+
+
+def run_agent_turn_detailed(
+    messages: list,
+    model: str = MODEL,
+    system_prompt: str = SYSTEM_PROMPT,
+    today: date | None = None,
+    show_calendar: bool = False,                    
+) -> TurnResult:
     """
-    Runs one customer turn: calls Claude, executes any tools it requests,
-    and repeats until Claude produces a final text reply.
-    `messages` must already contain the latest user message; it is updated in place.
+    Same loop as before, but records tool calls, tokens and latency.
+    `model`, `system_prompt`, `today` and `show_calendar` can be changed for experiments.
     """
+    today = today or date.today()
+    result = TurnResult(reply="")
+    start = time.perf_counter()
+
+    # NEW: the date information added to the system prompt
+    date_context = f"\nToday's date is {today.strftime('%A, %Y-%m-%d')}."
+    if show_calendar:
+        date_context += "\n" + build_calendar(today)
+
     while True:
         response = client.messages.create(
-            model=MODEL,
+            model=model,
             max_tokens=500,
-            system=SYSTEM_PROMPT + f"\nToday's date is {date.today().strftime('%A, %Y-%m-%d')}.",
+            system=system_prompt + date_context,    # CHANGED
             tools=workshop_tools,
             messages=messages
         )
+
+        # Count every call to Claude and the tokens it used
+        result.llm_calls += 1
+        result.input_tokens += response.usage.input_tokens
+        result.output_tokens += response.usage.output_tokens
 
         if response.stop_reason == "tool_use":
             messages.append({"role": "assistant", "content": response.content})
@@ -96,16 +144,30 @@ def run_agent_turn(messages: list) -> str:
             tool_results = []
             for block in response.content:
                 if block.type == "tool_use":
-                    result = execute_tool(block.name, block.input)
+                    output = execute_tool(block.name, block.input)
+
+                    # Remember what Claude did
+                    result.tool_calls.append({
+                        "name": block.name,
+                        "input": block.input,
+                        "output": output,
+                        "is_error": output.startswith("Error:"),
+                    })
+
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": result
+                        "content": output
                     })
 
             messages.append({"role": "user", "content": tool_results})
         else:
-            # Join all text blocks (safer than assuming content[0] is text)
-            agent_reply = "".join(b.text for b in response.content if b.type == "text")
-            messages.append({"role": "assistant", "content": agent_reply})
-            return agent_reply
+            result.reply = "".join(b.text for b in response.content if b.type == "text")
+            messages.append({"role": "assistant", "content": result.reply})
+            result.latency_seconds = time.perf_counter() - start
+            return result
+
+
+def run_agent_turn(messages: list) -> str:
+    """The simple version used by api.py and main.py: just the reply text."""
+    return run_agent_turn_detailed(messages, system_prompt=SYSTEM_PROMPT_V2, show_calendar=True).reply

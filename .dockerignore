@@ -5,3 +5,6 @@ __pycache__/
 llm_ai/
 .git/
 test_server.py
+mlartifacts/
+mlruns/
+evals/
